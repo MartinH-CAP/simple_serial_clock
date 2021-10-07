@@ -11,7 +11,7 @@
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
-SoftwareSerial mySerial(D5, D6);
+SoftwareSerial mySerial( /*RX*/ D5, /*TX*/ D6);
 
 #define PD_OUT_SIZE 14
 #define NUM_LEDS    16
@@ -191,18 +191,26 @@ void loop()
   // put your main code here, to run repeatedly:
   timeClient.update();
   timeClient.setTimeOffset(TIME_ZOME);
+  #if 0
   Serial.print("\n\nNew Output: Time:");
   Serial.println(timeClient.getFormattedTime());
+  #endif
   
+  const unsigned long currentMillis = millis();
+  const int currentMinute = timeClient.getMinutes();
+  const int currentHour = timeClient.getHours();
+
   //TODO stimmt in der ersten minute nicht...
-  if (last_minute != timeClient.getMinutes())
+  if (last_minute != currentMinute)
   {
-    last_millis = millis();
+    last_millis = currentMillis;
+    last_minute = currentMinute;
   }
-  last_minute = timeClient.getMinutes();
+  #if 0
   Serial.print("Sec in millis: ");
-  Serial.println(millis() - last_millis);
-  uint32_t numActiveLeds = (NUM_LEDS * (millis() - last_millis) + 30000u) / 60000u;
+  Serial.println(currentMillis - last_millis);
+  #endif
+  uint32_t numActiveLeds = (NUM_LEDS * (currentMillis - last_millis) + 30000u) / 60000u;
 
   if (numActiveLeds != prevNumActiveLeds) {
     uint32_t activeLedsMask = ((1u << numActiveLeds) - 1u) << LED_SHIFT;
@@ -213,7 +221,7 @@ void loop()
     Serial.println(button_strukt.activeLedsMask, BIN);
 
     char text[NUM_DIGITS + 1];
-    snprintf(&text[0], NUM_DIGITS + 1, "%02d%02d", timeClient.getHours(), timeClient.getMinutes());
+    snprintf(&text[0], NUM_DIGITS + 1, "%02d%02d", currentHour, currentMinute);
     Serial.print("Text on display: ");
     Serial.println(text);
 
@@ -228,20 +236,24 @@ void loop()
 
 
     Serial.print("button_strukt: ");
+
+    /* send Time PD */
     uint8_t *pt = (uint8_t *)&button_strukt;
     for (int i = 0; i < PD_OUT_SIZE; i++)
     {
       mySerial.write(pt[i]);
-      Serial.print(pt[i], DEC);
+      Serial.print(pt[i], HEX);
     }
+    Serial.println();
+    delay(50); /* ms */
 
-    delay(100);
+    /* send Date PD */
     pt = (uint8_t *)&pdDate;
     for (int i = 0; i < PD_OUT_SIZE; i++)
     {
       mySerial.write(pt[i]);
     }
-
+    delay(50); /* ms */
 
     prevNumActiveLeds = numActiveLeds;
   }
